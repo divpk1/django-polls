@@ -17,7 +17,7 @@ pipeline {
         stage('Checkout Code') {
             steps {
                 // Clones the specific PR branch sent by GitHub Actions
-                git url: 'https://github.com/your-username/your-repo.git', branch: "${params.PR_BRANCH}"
+                git url: 'https://github.com/divpk1/django-polls', branch: "${params.PR_BRANCH}"
             }
         }
 
