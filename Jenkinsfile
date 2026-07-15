@@ -33,7 +33,7 @@ pipeline {
                     pip install --upgrade pip
                     pip install -r requirements.txt || pip install django coverage
                     coverage run --source='.' manage.py test --noinput
-                    coverage xml -i -o coverage.xml
+                    coverage xml -i -o coverage.xml || true
                 '''
             }
         }
