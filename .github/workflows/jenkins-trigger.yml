@@ -3,6 +3,20 @@ name: Trigger Jenkins SonarQube Scan
 on:
   pull_request:
     types: [opened, synchronize, reopened]
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: 'PR Number (Leave blank if testing a branch directly)'
+        required: false
+        default: '0'
+      pr_branch:
+        description: 'Branch to scan'
+        required: true
+        default: 'main'
+      pr_base:
+        description: 'Base branch to compare against'
+        required: true
+        default: 'main'
 
 jobs:
   trigger-jenkins:
