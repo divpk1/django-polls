@@ -6,26 +6,31 @@ on:
   workflow_dispatch:
     inputs:
       pr_number:
-        description: 'PR Number (Leave blank if testing a branch directly)'
+        description: 'PR Number'
         required: false
         default: '0'
       pr_branch:
         description: 'Branch to scan'
         required: true
-        default: 'main'
+        default: 'master'
       pr_base:
-        description: 'Base branch to compare against'
+        description: 'Base branch'
         required: true
-        default: 'main'
+        default: 'master'
 
 jobs:
   trigger-jenkins:
     runs-on: ubuntu-latest
     steps:
-      - name: Trigger Jenkins Parameterized Job
-        run: |
-          curl -X POST "http://${{ secrets.JENKINS_PUBLIC_IP }}:8080/job/django-sonar-scan/buildWithParameters" \
-            --user "${{ secrets.JENKINS_USER }}:${{ secrets.JENKINS_TOKEN }}" \
-            --data "PR_NUMBER=${{ github.event.pull_request.number }}" \
-            --data "PR_BRANCH=${{ github.event.pull_request.head.ref }}" \
-            --data "PR_BASE=${{ github.event.pull_request.base.ref }}"
+      - name: Trigger and Wait for Jenkins
+        uses: appleboy/jenkins-action@master
+        with:
+          url: "http://${{ secrets.JENKINS_PUBLIC_IP }}:8080"
+          user: "${{ secrets.JENKINS_USER }}"
+          token: "${{ secrets.JENKINS_TOKEN }}"
+          job: "django-sonar-scan"
+          # Pass your parameters dynamically here
+          parameter: |
+            PR_NUMBER=${{ github.event.inputs.pr_number || github.event.pull_request.number || '0' }}
+            PR_BRANCH=${{ github.event.inputs.pr_branch || github.event.pull_request.head.ref || 'master' }}
+            PR_BASE=${{ github.event.inputs.pr_base || github.event.pull_request.base.ref || 'master' }}
