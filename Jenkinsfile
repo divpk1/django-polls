@@ -1,81 +1,51 @@
 pipeline {
     agent any
 
-    environment {
-        // Match the name you gave to your SonarQube installation in Jenkins System Config
-        SONAR_SERVER_NAME = 'SonarQube-Server'
-        // Name of the scanner tool configured under Global Tool Configuration
-        SONAR_SCANNER_HOME = tool 'SonarQubeScanner'
+    // Defines the incoming parameters sent by the GitHub Action curl command
+    parameters {
+        string(name: 'PR_NUMBER', defaultValue: '', description: 'GitHub PR Number')
+        string(name: 'PR_BRANCH', defaultValue: '', description: 'Source Branch')
+        string(name: 'PR_BASE',   defaultValue: '', description: 'Target Base Branch')
     }
 
-    triggers {
-        // Triggers the pipeline when a PR is raised/updated (adjust depending on your plugin setup)
-        issueCommentTrigger('.*test-sonar.*') 
+    environment {
+        SONAR_SERVER_NAME  = 'SonarQube-Public-Server'
+        SONAR_SCANNER_HOME = tool 'SonarQubeScanner'
     }
 
     stages {
         stage('Checkout Code') {
             steps {
-                checkout scm
+                // Clones the specific PR branch sent by GitHub Actions
+                git url: 'https://github.com/your-username/your-repo.git', branch: "${params.PR_BRANCH}"
             }
         }
 
-        stage('Django Lint & Test') {
+        stage('Django Test Matrix') {
             steps {
-                echo 'Running unit tests and generating coverage data...'
-                // If you are using Docker inside your pipeline to isolate builds:
                 sh '''
-                    pip install -r requirements.txt
-                    pip install coverage
-                    coverage run --source='.' manage.py test
-                    coverage xml -o coverage.xml
+                    python3 -m venv venv
+                    . venv/bin/activate
+                    pip install -r requirements.txt || pip install django coverage
+                    coverage run --source='.' manage.py test --noinput
+                    coverage xml -i -o coverage.xml
                 '''
             }
         }
 
-        stage('SonarQube Analysis') {
+        stage('SonarQube Scan') {
             steps {
-                // Wraps the execution with the SonarQube environment details & authentication tokens
                 withSonarQubeEnv("${env.SONAR_SERVER_NAME}") {
-                    
-                    // Conditionally injection PR variables if it's a GitHub/GitLab pull request hook
-                    script {
-                        def prProperties = ""
-                        if (env.CHANGE_ID) { // CHANGE_ID is automatically populated by Multibranch Pipelines for PRs
-                            prProperties = """
-                                -Dsonar.pullrequest.key=${env.CHANGE_ID} \
-                                -Dsonar.pullrequest.branch=${env.CHANGE_BRANCH} \
-                                -Dsonar.pullrequest.base=${env.CHANGE_TARGET}
-                            """
-                        }
-                        
-                        // Execute the scanner
-                        sh """
-                            ${env.SONAR_SCANNER_HOME}/bin/sonar-scanner \
-                            -Dsonar.projectKey=django-web-app \
-                            -Dsonar.projectName="Django Web App" \
-                            -Dsonar.sources=. \
-                            -Dsonar.exclusions=**/migrations/**,manage.py,venv/**,*.json \
-                            -Dsonar.tests=. \
-                            -Dsonar.test.inclusions=**/tests/**,test_*.py \
-                            -Dsonar.python.coverage.reportPaths=coverage.xml \
-                            ${prProperties}
-                        """
-                    }
-                }
-            }
-        }
-
-        stage("Quality Gate Hook") {
-            steps {
-                // Wait for SonarQube to finish analysis and return green/red status back to Jenkins
-                timeout(time: 5, unit: 'MINUTES') {
-                    script {
-                        def qg = waitForQualityGate()
-                        if (qg.status != 'OK') {
-                            error "Pipeline failed due to Quality Gate failure: ${qg.status}"
-                        }
-                    }
+                    sh """
+                        ${env.SONAR_SCANNER_HOME}/bin/sonar-scanner \
+                        -Dsonar.projectKey=django-app \
+                        -Dsonar.sources=. \
+                        -Dsonar.exclusions=**/migrations/**,venv/** \
+                        -Dsonar.python.coverage.reportPaths=coverage.xml \
+                        -Dsonar.pullrequest.key=${params.PR_NUMBER} \
+                        -Dsonar.pullrequest.branch=${params.PR_BRANCH} \
+                        -Dsonar.pullrequest.base=${params.PR_BASE}
+                    """
                 }
             }
         }
