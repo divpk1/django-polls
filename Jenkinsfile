@@ -1,11 +1,10 @@
 pipeline {
     agent any
 
-    // Defines the incoming parameters sent by the GitHub Action curl command
     parameters {
-        string(name: 'PR_NUMBER', defaultValue: '', description: 'GitHub PR Number')
-        string(name: 'PR_BRANCH', defaultValue: '', description: 'Source Branch')
-        string(name: 'PR_BASE',   defaultValue: '', description: 'Target Base Branch')
+        string(name: 'PR_NUMBER', defaultValue: '0', description: 'GitHub PR Number')
+        string(name: 'PR_BRANCH', defaultValue: 'master', description: 'Source Branch')
+        string(name: 'PR_BASE',   defaultValue: 'master', description: 'Target Base Branch')
     }
 
     environment {
@@ -14,10 +13,15 @@ pipeline {
     }
 
     stages {
-        stage('Checkout Code') {
+        // The automatic "Declarative: Checkout SCM" stage handles getting the repo.
+        // We added a step below to ensure we are explicitly checked out to the PR branch.
+        stage('Prepare Branch') {
             steps {
-                // Clones the specific PR branch sent by GitHub Actions
-                git url: 'https://github.com/divpk1/django-polls', branch: "${params.PR_BRANCH}"
+                script {
+                    echo "Ensuring workspace is on branch: ${params.PR_BRANCH}"
+                    // Switches the already cloned repo to the exact branch passed by GitHub Actions
+                    sh "git checkout ${params.PR_BRANCH} || git checkout -b ${params.PR_BRANCH}"
+                }
             }
         }
 
@@ -26,6 +30,7 @@ pipeline {
                 sh '''
                     python3 -m venv venv
                     . venv/bin/activate
+                    pip install --upgrade pip
                     pip install -r requirements.txt || pip install django coverage
                     coverage run --source='.' manage.py test --noinput
                     coverage xml -i -o coverage.xml
