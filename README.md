@@ -8,6 +8,8 @@ This app is meant to be used as a reference Django app for several DigitalOcean 
 
 ----
 
+
+
 ### Quickstart
 
 Polls is a simple Django app to conduct Web-based polls. For each question, visitors can choose between a fixed number of answers.
