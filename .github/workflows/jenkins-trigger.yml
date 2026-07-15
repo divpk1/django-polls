@@ -1,0 +1,17 @@
+name: Trigger Jenkins SonarQube Scan
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+jobs:
+  trigger-jenkins:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger Jenkins Parameterized Job
+        run: |
+          curl -X POST "http://${{ secrets.JENKINS_PUBLIC_IP }}:8080/job/django-sonar-scan/buildWithParameters" \
+            --user "${{ secrets.JENKINS_USER }}:${{ secrets.JENKINS_TOKEN }}" \
+            --data "PR_NUMBER=${{ github.event.pull_request.number }}" \
+            --data "PR_BRANCH=${{ github.event.pull_request.head.ref }}" \
+            --data "PR_BASE=${{ github.event.pull_request.base.ref }}"
