@@ -13,25 +13,31 @@ pipeline {
     }
 
     stages {
-        // The automatic "Declarative: Checkout SCM" stage handles getting the repo.
-        // We added a step below to ensure we are explicitly checked out to the PR branch.
         stage('Prepare Branch') {
             steps {
                 script {
                     echo "Ensuring workspace is on branch: ${params.PR_BRANCH}"
-                    // Switches the already cloned repo to the exact branch passed by GitHub Actions
                     sh "git checkout ${params.PR_BRANCH} || git checkout -b ${params.PR_BRANCH}"
                 }
             }
         }
 
         stage('Django Test Matrix') {
+            agent {
+                // Dynamically spin up a container that natively includes Python
+                docker { 
+                    image 'python:3.11-slim'
+                    // Reuses the workspace directory mapped from Jenkins
+                    reuseNode true 
+                }
+            }
             steps {
+                echo 'Running unit tests inside localized Python container...'
                 sh '''
-                    python3 -m venv venv
-                    . venv/bin/activate
                     pip install --upgrade pip
                     pip install -r requirements.txt || pip install django coverage
+                    
+                    # Run tests and output coverage report footprint
                     coverage run --source='.' manage.py test --noinput
                     coverage xml -i -o coverage.xml
                 '''
@@ -39,13 +45,14 @@ pipeline {
         }
 
         stage('SonarQube Scan') {
+            // Evaluates back on the host agent where the SonarQube Scanner tool binary lives
             steps {
                 withSonarQubeEnv("${env.SONAR_SERVER_NAME}") {
                     sh """
                         ${env.SONAR_SCANNER_HOME}/bin/sonar-scanner \
                         -Dsonar.projectKey=django-app \
                         -Dsonar.sources=. \
-                        -Dsonar.exclusions=**/migrations/**,venv/** \
+                        -Dsonar.exclusions=**/migrations/**,venv/**,**/.venv/** \
                         -Dsonar.python.coverage.reportPaths=coverage.xml \
                         -Dsonar.pullrequest.key=${params.PR_NUMBER} \
                         -Dsonar.pullrequest.branch=${params.PR_BRANCH} \
